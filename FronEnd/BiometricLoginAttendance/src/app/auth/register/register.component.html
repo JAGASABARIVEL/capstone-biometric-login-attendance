@@ -1,0 +1,18 @@
+<form [formGroup]="registerForm" (ngSubmit)="submit()">
+    <label>Username</label>
+    <input type="text" formControlName="username" />
+  
+    <label>Password</label>
+    <input type="password" formControlName="password" />
+  
+    <webcam [trigger]="triggerObservable" (imageCapture)="handleImage($event)" *ngIf="showWebcam"></webcam>
+    <button type="button" (click)="triggerSnapshot()">Capture</button>
+  
+    <div *ngIf="webcamImage">
+      <h4>Preview</h4>
+      <img [src]="webcamImage?.imageAsDataUrl" />
+    </div>
+  
+    <button type="submit" [disabled]="registerForm.invalid || !webcamImage">Register</button>
+  </form>
+  

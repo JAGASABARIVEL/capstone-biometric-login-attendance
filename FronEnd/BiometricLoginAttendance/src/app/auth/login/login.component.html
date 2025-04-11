@@ -1,0 +1,7 @@
+<form [formGroup]="loginForm" (ngSubmit)="submit()">
+    <webcam [trigger]="triggerObservable" (imageCapture)="handleImage($event)"></webcam>
+    <button type="button" (click)="triggerSnapshot()">Capture</button>
+    <img *ngIf="webcamImage" [src]="webcamImage.imageAsDataUrl" width="150" />
+    <button type="submit" [disabled]="!webcamImage">Login</button>
+  </form>
+  

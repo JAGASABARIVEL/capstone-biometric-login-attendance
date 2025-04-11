@@ -1,0 +1,11 @@
+<div>
+    <webcam [trigger]="triggerObservable" (imageCapture)="handleImage($event)"></webcam>
+    <button type="button" (click)="triggerSnapshot()">Capture</button>
+  
+    <img *ngIf="webcamImage" [src]="webcamImage.imageAsDataUrl" width="150" />
+  
+    <button (click)="markAttendance()" [disabled]="!webcamImage || isSubmitting">
+      {{ isSubmitting ? 'Submitting...' : 'Mark Attendance' }}
+    </button>  
+  </div>
+  
