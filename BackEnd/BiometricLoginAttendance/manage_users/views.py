@@ -1,9 +1,10 @@
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from django.contrib.auth import authenticate
 from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
 from .models import CustomUser
+
 import cv2
 import numpy as np
 import base64
@@ -22,14 +23,11 @@ def extract_face_encoding(image_bytes):
     return None
 
 
-def compare_encodings(encoding1, encoding2, threshold=0.7):
+def calculate_distance(encoding1, encoding2):
     emb1 = np.array(list(map(float, encoding1.split(','))))
     emb2 = np.array(list(map(float, encoding2.split(','))))
-    distance = np.linalg.norm(emb1 - emb2)
-    return distance < threshold
+    return np.linalg.norm(emb1 - emb2)
 
-
-from rest_framework_simplejwt.tokens import RefreshToken
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -46,7 +44,7 @@ def register(request):
 
     try:
         image_bytes = base64.b64decode(image_data.split(',')[1])
-    except Exception as e:
+    except Exception:
         return Response({"error": "Invalid image format"}, status=status.HTTP_400_BAD_REQUEST)
 
     face_encoding = extract_face_encoding(image_bytes)
@@ -59,7 +57,6 @@ def register(request):
     user.face_encoding = face_encoding
     user.save()
 
-    # Generate JWT tokens
     refresh = RefreshToken.for_user(user)
 
     return Response({
@@ -80,7 +77,7 @@ def login(request):
 
     try:
         image_bytes = base64.b64decode(image_data.split(',')[1])
-    except Exception as e:
+    except Exception:
         return Response({"error": "Invalid image format"}, status=status.HTTP_400_BAD_REQUEST)
 
     encoding = extract_face_encoding(image_bytes)
@@ -88,15 +85,27 @@ def login(request):
     if not encoding:
         return Response({"error": "Could not extract face encoding"}, status=status.HTTP_400_BAD_REQUEST)
 
-    for user in CustomUser.objects.exclude(face_encoding__isnull=True):
-        if compare_encodings(encoding, user.face_encoding):
-            # Generate JWT tokens
-            refresh = RefreshToken.for_user(user)
-            return Response({
-                "message": f"Login successful for {user.username}",
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-                "username": user.username
-            }, status=status.HTTP_200_OK)
+    best_match = None
+    min_distance = float('inf')
+    threshold = 10  # Adjust for sensitivity
 
-    return Response({"error": "Face not recognized"}, status=status.HTTP_401_UNAUTHORIZED)
+    for user in CustomUser.objects.exclude(face_encoding__isnull=True):
+        distance = calculate_distance(encoding, user.face_encoding)
+        if distance < min_distance:
+            min_distance = distance
+            best_match = user
+
+    if best_match and min_distance < threshold:
+        refresh = RefreshToken.for_user(best_match)
+        return Response({
+            "message": f"Login successful for {best_match.username}",
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "username": best_match.username,
+            "confidence": round((1 - min_distance), 2)
+        }, status=status.HTTP_200_OK)
+
+    return Response({
+        "error": "Face not recognized",
+        "min_distance": round(min_distance, 4)
+    }, status=status.HTTP_401_UNAUTHORIZED)
